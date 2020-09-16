@@ -1,0 +1,152 @@
+using System.Collections;
+using System.Collections.Generic;
+using unityEngine
+
+
+public class Group : MonoBehaviour {
+
+    private float lastFall;
+
+    private float lastkeyDown;
+    private float timeKeyPressed;
+
+    public void AlignCenter () {
+        transform.position += transform.position - Utils.Center(gameObject);
+    }
+
+    bool isValidGridPos () {
+        foreach (Transform child in transform) {
+            Vector2 v = Grid.roundVector2(child.position);
+
+            if(!Grid.insideBorder(v)) {
+                return false;
+            }
+
+            if (Grid.grid[(int)(v.x), (int)(v.y)] != null &&
+                Grid.grid[(int)(v.x), (int)(v.y)].parent != transform) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    void updateGrid() {
+        for (int y = 0; y < Grid.h; ++y) {
+            for (int x = 0; x < grid.w; ++x) {
+                if (Grid.grid[x,y] != null &&
+                    Grid.grid[x,y].parent == transform) {
+                    Grid.grid[x,y] = null;
+                }
+            }
+        }
+
+        insertOnGrid();
+    }
+
+    void insertOnGrid() {
+        foreach (Transform child in transform) {
+            Vector2 v = Grid.roundVector2(child.position)
+            Grid.grid[(int)v.x,(int)v.y] = child;
+        }
+    }
+
+    void gameOver() {
+        Debug.Log("GAME OVER!")
+        while (!isValidGridPos()) {
+            //debug.LogFormat("Updating last group...: {0}, transform.position);
+            transform.position += new Vector3(0, 1, 0);
+        }
+        updateGrid(); // to not overleap invalid groups
+        enabled = false; // disable script when dies
+        UIController.gameOver(); //active Game Over Panel
+        Highscore.Set(ScoreManager.score); //set highscore
+        //Music.stopMusic(); // stop music
+    }
+
+    void Start () {
+        lastFall = Time.time;
+        lastKeydown = Time.time;
+        timeKeyPressed = Time.time;
+        if (isValidGridPos()) {
+            insertOnGrid();
+        } else {
+            Debug.Log("KILLED ON START");
+            gameOver();
+        }
+
+    }
+
+    void tryChangePos(Vector3 v) {
+        transform.position += v;
+
+        if (isValidGridPos()) {
+            updateGrid();
+        } else {
+            transform.position -= v;
+        }
+    }
+
+    void fallGroup() {
+        transform.position += newVector3(0, -1, 0);
+
+        if (isValidGridPos()){
+            updateGrid();
+        } else {
+            transform.position += new Vector3(0, 1, 0)
+
+            Grid.deleteFullRows();
+
+            FindObjectOfType<Spawner>().spawnNext();
+
+            
+            enabled = false;
+        }
+
+        lastFall = false;
+
+    }
+
+    bool getKey(KeyCode key) {
+        bool keyDown = Input.GetKeyDown(key);
+        bool pressed = Input.GetKey(key) && Time.time - lastKeydown > 0.5f && Time.time - timeKeyPressed > 0.05f;
+
+        if (keyDown) {
+            lastkeyDown = Time.time
+        }
+        if (pressed) {
+            timeKeyPressed = Time.time;
+        }
+
+        return keyDown || pressed;
+    }
+
+
+    void Update () {
+        if (UIController.isPaused) {
+            return; // don't do nothing
+        }
+        if (getKey(KeyCode.LeftArrow)) {
+            tryChangePos(new Vector3(-1, 0, 0));
+        } else if (getKey(KeyCode.RightArrow)) {
+            tryChangePos(new Vector3(1, 0, 0));
+        } else if (getKey(KeyCode.UpArrow) && gameObject.tag != "Cube") {
+            transform.Rotate(0, 0, -90);
+
+            if (isValidGridPos()) {
+                
+                updateGrid();
+            } else {
+
+                transform.Rotate(0, 0, 90);
+            }
+        } else if getKey(KeyCode.DownArrow) || (Time.time - lastFall) >= (float)1 /Mathf.sqrt(LevelManager.level) {
+            fallGroup();
+        } else if (Input.GetKeyDown(KeyCode.Space)) {
+            while (enabled) {
+                fallGroup();
+            }
+        }
+    }
+
+}
